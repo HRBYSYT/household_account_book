@@ -2,16 +2,22 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <!-- スマホでの勝手なズームを禁止する設定 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>家計簿ダッシュボード</title>
+  <!-- Chart.js 本体 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- パーセンテージを表示するための追加ライブラリ -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <style>
     body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa; color: #333; margin: 0; padding: 20px; touch-action: manipulation; }
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     h1 { text-align: center; font-size: 20px; margin-bottom: 20px; }
-    .month-selector { text-align: center; margin-bottom: 20px; }
+    .month-selector { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; }
     input[type="month"] { padding: 8px 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; }
+    /* 更新ボタンのデザイン */
+    .reload-btn { padding: 8px 15px; font-size: 16px; border-radius: 8px; border: none; background-color: #007bff; color: white; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    .reload-btn:active { background-color: #0056b3; transform: scale(0.95); }
+    
     .chart-container { position: relative; width: 100%; max-width: 300px; margin: 0 auto 20px auto; }
     .total-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
     .total-center .label { font-size: 12px; color: #666; }
@@ -19,9 +25,7 @@
     .details-list { list-style: none; padding: 0; margin: 0; }
     .details-list li { display: flex; flex-direction: column; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 16px; }
     .details-list li:last-child { border-bottom: none; }
-    /* タップできる項目のデザイン */
     .category-summary { display: flex; justify-content: space-between; width: 100%; cursor: pointer; padding: 5px 0; font-weight: bold; }
-    /* 詳細一覧（最初は非表示） */
     .category-items { display: none; width: 100%; margin-top: 10px; font-size: 14px; color: #555; background: #fafafa; padding: 10px; border-radius: 8px; box-sizing: border-box; }
     .item-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #ddd; }
     .item-row:last-child { border-bottom: none; }
@@ -34,6 +38,8 @@
     <h1>家計簿ダッシュボード</h1>
     <div class="month-selector">
       <input type="month" id="monthInput">
+      <!-- 更新ボタンを追加 -->
+      <button id="reloadBtn" class="reload-btn">↻ 更新</button>
     </div>
     <div id="loading" class="loading">データを読み込み中...</div>
 
@@ -45,23 +51,16 @@
       </div>
     </div>
 
-    <!-- 項目リスト（タップで詳細が開きます） -->
     <ul class="details-list" id="detailsList"></ul>
   </div>
 
   <script>
-    // ★★★ここにGASのURLを再度貼り付けてください★★★
+    // ★★★ここにGASのURLを貼り付けてください★★★
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzvGbokTSig5Q_I8RlATp7ydC8IucNwSksan6slqc4QNTnjNwWzaInCt5j6ZkhDynDSkw/exec";
     
-    // 【項目の色を完全に固定】
-    // ※好みに合わせてカラーコード（#〜）を変更できます
     const categoryColors = {
-      "食費": "#FF6384",
-      "交際費": "#36A2EB",
-      "交通費": "#FFCE56",
-      "固定費・生活費": "#4BC0C0",
-      "買い物・趣味": "#9966FF",
-      "その他": "#FF9F40"
+      "食費": "#FF6384", "交際費": "#36A2EB", "交通費": "#FFCE56",
+      "固定費・生活費": "#4BC0C0", "買い物・趣味": "#9966FF", "その他": "#808080"
     };
     
     let myChart = null;
@@ -74,7 +73,9 @@
       fetchData();
     };
 
+    // カレンダー変更時と更新ボタン押下時にデータを再取得
     document.getElementById('monthInput').addEventListener('change', fetchData);
+    document.getElementById('reloadBtn').addEventListener('click', fetchData);
 
     async function fetchData() {
       const month = document.getElementById('monthInput').value;
@@ -108,7 +109,6 @@
       data.details.forEach(item => {
         const li = document.createElement('li');
         
-        // その項目の使用履歴（日付・メモ・金額）のHTMLを作成
         let itemsHtml = item.items.map(detail => `
           <div class="item-row">
             <span>${detail.date} <span style="color:#888; font-size:12px; margin-left:8px;">${detail.memo}</span></span>
@@ -116,7 +116,6 @@
           </div>
         `).join('');
 
-        // 項目名（タップ可能）と詳細一覧を合体
         li.innerHTML = `
           <div class="category-summary">
             <span>${item.category} <span style="font-size:11px; color:#999; margin-left:5px;">▼タップで明細</span></span> 
@@ -127,19 +126,14 @@
           </div>
         `;
 
-        // タップしたら詳細（明細）が開閉するアクション
         li.querySelector('.category-summary').addEventListener('click', () => {
           const itemsDiv = li.querySelector('.category-items');
           itemsDiv.style.display = (itemsDiv.style.display === 'none' || itemsDiv.style.display === '') ? 'block' : 'none';
         });
 
         listElement.appendChild(li);
-
-        // グラフ用のデータセット
         labels.push(item.category);
         amounts.push(item.amount);
-        
-        // 色を固定（リストに無い項目が追加されたらグレーにする）
         bgColors.push(categoryColors[item.category] || "#999999");
       });
 
@@ -148,6 +142,7 @@
       
       myChart = new Chart(ctx, {
         type: 'doughnut',
+        plugins: [ChartDataLabels], // パーセンテージ用プラグインを有効化
         data: {
           labels: labels,
           datasets: [{
@@ -159,7 +154,20 @@
         options: {
           cutout: '70%',
           responsive: true,
-          plugins: { legend: { position: 'bottom' } }
+          plugins: { 
+            legend: { position: 'bottom' },
+            // パーセンテージ表示の設定
+            datalabels: {
+              color: '#fff',
+              font: { weight: 'bold', size: 14 },
+              formatter: (value, context) => {
+                const total = context.chart._metasets[context.datasetIndex].total;
+                if (total === 0) return null;
+                const percentage = Math.round((value / total) * 100);
+                return percentage > 4 ? percentage + '%' : ''; // 5%未満は文字が潰れるので非表示
+              }
+            }
+          }
         }
       });
     }
