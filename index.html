@@ -54,7 +54,7 @@
       </div>
     </div>
     
-    <!-- ★複合グラフ -->
+    <!-- 複合グラフ -->
     <div class="line-chart-container" id="lineChartArea">
       <canvas id="myLineChart"></canvas>
     </div>
@@ -180,28 +180,27 @@
         }
       });
 
-      // === ★複合グラフ（積み上げ棒 ＋ 折れ線累計）の描画 ===
+      // === 複合グラフの描画 ===
       const lineCtx = document.getElementById('myLineChart').getContext('2d');
       if (myLineChart) { myLineChart.destroy(); }
 
       const monthValue = document.getElementById('monthInput').value; 
       const [yearStr, monthStr] = monthValue.split('-');
       const lastDay = new Date(Number(yearStr), Number(monthStr), 0).getDate();
-      const monthNum = Number(monthStr);
 
+      // ★日付を「日」のみに変更
       const chartLabels = [];
       for (let d = 1; d <= lastDay; d++) {
-        chartLabels.push(`${monthNum}/${d}`);
+        chartLabels.push(`${d}`);
       }
 
       const datasets = [];
       const dailyTotals = new Array(lastDay).fill(0);
 
-      // カテゴリ別の積み上げ棒グラフデータ
       data.details.forEach(detail => {
         const catData = new Array(lastDay).fill(0);
         detail.items.forEach(item => {
-          const dayStr = item.date.split('/')[1]; // 例: "9/15" -> "15"
+          const dayStr = item.date.split('/')[1];
           const dayIdx = parseInt(dayStr, 10) - 1;
           if (dayIdx >= 0 && dayIdx < lastDay) {
             catData[dayIdx] += item.amount;
@@ -214,12 +213,11 @@
           label: detail.category,
           data: catData,
           backgroundColor: categoryColors[detail.category] || "#999999",
-          yAxisID: 'y', // 左側のY軸に割り当て
-          order: 2 // 背面に表示
+          yAxisID: 'y',
+          order: 2
         });
       });
 
-      // 累計金額の計算と折れ線グラフデータ
       let cumulative = 0;
       const cumulativeData = dailyTotals.map(amount => {
         cumulative += amount;
@@ -230,14 +228,14 @@
         type: 'line',
         label: '累計支出',
         data: cumulativeData,
-        borderColor: '#333333', // 見やすいように濃いグレー
+        borderColor: '#333333',
         backgroundColor: '#333333',
         borderWidth: 2,
         fill: false,
         tension: 0.1,
         pointRadius: 2,
-        yAxisID: 'y1', // 右側のY軸に割り当て
-        order: 1 // 手前に表示
+        yAxisID: 'y1',
+        order: 1
       });
 
       myLineChart = new Chart(lineCtx, {
@@ -249,19 +247,20 @@
           responsive: true,
           interaction: {
             mode: 'index',
-            intersect: false, // グラフの縦線に沿ってツールチップをまとめて表示
+            intersect: false,
           },
           plugins: {
             legend: { 
               display: true,
               position: 'bottom',
-              labels: { boxWidth: 12, font: { size: 10 } } // 凡例のサイズを少し小さく
+              labels: { boxWidth: 12, font: { size: 10 } }
             },
-            datalabels: { display: false } // 数字の重なりを防ぐため非表示
+            datalabels: { display: false }
           },
           scales: {
             x: { 
-              stacked: true 
+              stacked: true,
+              ticks: { maxRotation: 0, font: { size: 10 } } // 日付の文字を小さくし、斜めになるのを防ぐ
             },
             y: {
               type: 'linear',
@@ -269,15 +268,27 @@
               position: 'left',
               stacked: true,
               beginAtZero: true,
-              ticks: { callback: function(value) { return '¥' + value.toLocaleString(); } }
+              ticks: { 
+                font: { size: 10 },
+                callback: function(value) { 
+                  if (value === 0) return '0';
+                  return value.toLocaleString(); // ¥を消してスッキリ
+                } 
+              }
             },
             y1: {
               type: 'linear',
               display: true,
               position: 'right',
               beginAtZero: true,
-              grid: { drawOnChartArea: false }, // 右側の罫線を消してスッキリさせる
-              ticks: { callback: function(value) { return '¥' + value.toLocaleString(); } }
+              grid: { drawOnChartArea: false },
+              ticks: { 
+                font: { size: 10 },
+                callback: function(value) { 
+                  if (value === 0) return '0';
+                  return (value / 10000) + '万'; // 累計は「万」単位にして幅を大幅に節約
+                } 
+              }
             }
           }
         }
