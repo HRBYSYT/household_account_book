@@ -45,6 +45,7 @@
     </div>
     <div id="loading" class="loading">データを読み込み中...</div>
 
+    <!-- 円グラフ -->
     <div class="chart-container" id="chartArea">
       <canvas id="myChart"></canvas>
       <div class="total-center">
@@ -53,6 +54,7 @@
       </div>
     </div>
     
+    <!-- 複合グラフ -->
     <div class="line-chart-container" id="lineChartArea">
       <canvas id="myLineChart"></canvas>
     </div>
@@ -144,6 +146,7 @@
         bgColors.push(categoryColors[item.category] || "#999999");
       });
 
+      // === 円グラフの描画 ===
       const ctx = document.getElementById('myChart').getContext('2d');
       if (myChart) { myChart.destroy(); }
       
@@ -163,6 +166,14 @@
           responsive: true,
           plugins: { 
             legend: { position: 'bottom' },
+            // ★円グラフのツールチップに¥マークとカンマを追加
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.label + ': ¥' + context.raw.toLocaleString();
+                }
+              }
+            },
             datalabels: {
               color: '#fff',
               font: { weight: 'bold', size: 14 },
@@ -177,6 +188,7 @@
         }
       });
 
+      // === 複合グラフの描画 ===
       const lineCtx = document.getElementById('myLineChart').getContext('2d');
       if (myLineChart) { myLineChart.destroy(); }
 
@@ -229,19 +241,17 @@
         borderWidth: 2,
         fill: false,
         tension: 0.1,
-        pointRadius: 2,
+        pointRadius: 1, // ★折れ線グラフの点を2から1に縮小
+        pointHoverRadius: 3, // タップした時は少し大きくする
         yAxisID: 'y1',
         order: 1
       });
       
-      // 金額を「千」「万」に自動整形する関数
       const formatAmount = (value) => {
         if (value === 0) return '0';
         if (value >= 10000) {
-          // 1万以上の場合は万単位（小数点第一位まででキリ良く）
           return parseFloat((value / 10000).toFixed(1)) + '万';
         } else if (value >= 1000) {
-          // 1000以上1万未満の場合は千単位
           return parseFloat((value / 1000).toFixed(1)) + '千';
         }
         return value;
@@ -270,6 +280,17 @@
                 title: function(tooltipItems) {
                   const day = tooltipItems[0].label;
                   return monthNum + '/' + day; 
+                },
+                // ★複合グラフのツールチップにも¥マークとカンマを追加
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) {
+                    label += ': ';
+                  }
+                  if (context.parsed.y !== null) {
+                    label += '¥' + context.parsed.y.toLocaleString();
+                  }
+                  return label;
                 }
               }
             }
@@ -287,7 +308,7 @@
               beginAtZero: true,
               ticks: { 
                 font: { size: 10 },
-                callback: formatAmount // 左軸（日別）に適用
+                callback: formatAmount
               }
             },
             y1: {
@@ -298,7 +319,7 @@
               grid: { drawOnChartArea: false },
               ticks: { 
                 font: { size: 10 },
-                callback: formatAmount // 右軸（累計）に適用
+                callback: formatAmount
               }
             }
           }
