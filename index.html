@@ -17,7 +17,6 @@
     h1 { text-align: center; font-size: 20px; margin-bottom: 20px; }
     .month-selector { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; }
     input[type="month"] { padding: 8px 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; }
-    /* 更新ボタンのデザイン */
     .reload-btn { padding: 8px 15px; font-size: 16px; border-radius: 8px; border: none; background-color: #007bff; color: white; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
     .reload-btn:active { background-color: #0056b3; transform: scale(0.95); }
     
@@ -25,6 +24,10 @@
     .total-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
     .total-center .label { font-size: 12px; color: #666; }
     .total-center .amount { font-size: 22px; font-weight: bold; }
+    
+    /* 折れ線グラフ用のコンテナ */
+    .line-chart-container { width: 100%; margin: 30px auto; }
+    
     .details-list { list-style: none; padding: 0; margin: 0; }
     .details-list li { display: flex; flex-direction: column; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 16px; }
     .details-list li:last-child { border-bottom: none; }
@@ -41,25 +44,28 @@
     <h1>家計簿ダッシュボード</h1>
     <div class="month-selector">
       <input type="month" id="monthInput">
-      <!-- 更新ボタンを追加 -->
       <button id="reloadBtn" class="reload-btn">↻ 更新</button>
     </div>
     <div id="loading" class="loading">データを読み込み中...</div>
 
+    <!-- 円グラフ -->
     <div class="chart-container" id="chartArea">
       <canvas id="myChart"></canvas>
-      <canvas id="myLineChart" style="margin-top: 20px;"></canvas>
       <div class="total-center">
         <div class="label">合計金額</div>
         <div class="amount" id="totalAmount">¥0</div>
       </div>
+    </div>
+    
+    <!-- ★追加：折れ線グラフ -->
+    <div class="line-chart-container" id="lineChartArea">
+      <canvas id="myLineChart"></canvas>
     </div>
 
     <ul class="details-list" id="detailsList"></ul>
   </div>
 
   <script>
-    // ★★★ここにGASのURLを貼り付けてください★★★
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzvGbokTSig5Q_I8RlATp7ydC8IucNwSksan6slqc4QNTnjNwWzaInCt5j6ZkhDynDSkw/exec";
     
     const categoryColors = {
@@ -68,6 +74,7 @@
     };
     
     let myChart = null;
+    let myLineChart = null; // ★追加：折れ線グラフ用の変数
 
     window.onload = () => {
       const today = new Date();
@@ -77,7 +84,6 @@
       fetchData();
     };
 
-    // カレンダー変更時と更新ボタン押下時にデータを再取得
     document.getElementById('monthInput').addEventListener('change', fetchData);
     document.getElementById('reloadBtn').addEventListener('click', fetchData);
 
@@ -87,6 +93,7 @@
 
       document.getElementById('loading').style.display = 'block';
       document.getElementById('chartArea').style.opacity = '0.3';
+      document.getElementById('lineChartArea').style.opacity = '0.3';
 
       try {
         const response = await fetch(`${GAS_URL}?month=${month}`, { redirect: "follow" });
@@ -98,6 +105,7 @@
       } finally {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('chartArea').style.opacity = '1';
+        document.getElementById('lineChartArea').style.opacity = '1';
       }
     }
 
@@ -141,12 +149,13 @@
         bgColors.push(categoryColors[item.category] || "#999999");
       });
 
+      // === 円グラフの描画 ===
       const ctx = document.getElementById('myChart').getContext('2d');
       if (myChart) { myChart.destroy(); }
       
       myChart = new Chart(ctx, {
         type: 'doughnut',
-        plugins: [ChartDataLabels], // パーセンテージ用プラグインを有効化
+        plugins: [ChartDataLabels],
         data: {
           labels: labels,
           datasets: [{
@@ -160,7 +169,6 @@
           responsive: true,
           plugins: { 
             legend: { position: 'bottom' },
-            // パーセンテージ表示の設定
             datalabels: {
               color: '#fff',
               font: { weight: 'bold', size: 14 },
@@ -168,12 +176,54 @@
                 const total = context.chart._metasets[context.datasetIndex].total;
                 if (total === 0) return null;
                 const percentage = Math.round((value / total) * 100);
-                return percentage > 4 ? percentage + '%' : ''; // 5%未満は文字が潰れるので非表示
+                return percentage > 4 ? percentage + '%' : '';
               }
             }
           }
         }
       });
+
+      // === ★追加：折れ線グラフの描画 ===
+      const lineCtx = document.getElementById('myLineChart').getContext('2d');
+      if (myLineChart) { myLineChart.destroy(); } // 古いグラフがあれば消す
+
+      if (data.dailyData && data.dailyData.length > 0) {
+        // GASから受け取った dailyData をX軸(日付)とY軸(金額)に分ける
+        const lineLabels = data.dailyData.map(item => item.date);
+        const lineAmounts = data.dailyData.map(item => item.amount);
+
+        myLineChart = new Chart(lineCtx, {
+          type: 'line',
+          data: {
+            labels: lineLabels,
+            datasets: [{
+              label: '日別の支出',
+              data: lineAmounts,
+              borderColor: '#4e73df', // 線の色
+              backgroundColor: 'rgba(78, 115, 223, 0.1)', // 線の下のうっすらとした色
+              borderWidth: 2,
+              pointBackgroundColor: '#4e73df',
+              fill: true,
+              tension: 0.3 // なめらかなカーブ
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false }, // 凡例を非表示
+              datalabels: { display: false } // ★折れ線グラフではパーセンテージプラグインを無効化する
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: function(value) { return '¥' + value.toLocaleString(); }
+                }
+              }
+            }
+          }
+        });
+      }
     }
   </script>
 </body>
