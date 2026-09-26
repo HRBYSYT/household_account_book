@@ -45,7 +45,6 @@
     </div>
     <div id="loading" class="loading">データを読み込み中...</div>
 
-    <!-- 円グラフ -->
     <div class="chart-container" id="chartArea">
       <canvas id="myChart"></canvas>
       <div class="total-center">
@@ -54,7 +53,6 @@
       </div>
     </div>
     
-    <!-- 複合グラフ -->
     <div class="line-chart-container" id="lineChartArea">
       <canvas id="myLineChart"></canvas>
     </div>
@@ -146,7 +144,6 @@
         bgColors.push(categoryColors[item.category] || "#999999");
       });
 
-      // === 円グラフの描画 ===
       const ctx = document.getElementById('myChart').getContext('2d');
       if (myChart) { myChart.destroy(); }
       
@@ -180,15 +177,14 @@
         }
       });
 
-      // === 複合グラフの描画 ===
       const lineCtx = document.getElementById('myLineChart').getContext('2d');
       if (myLineChart) { myLineChart.destroy(); }
 
       const monthValue = document.getElementById('monthInput').value; 
       const [yearStr, monthStr] = monthValue.split('-');
       const lastDay = new Date(Number(yearStr), Number(monthStr), 0).getDate();
+      const monthNum = Number(monthStr);
 
-      // ★日付を「日」のみに変更
       const chartLabels = [];
       for (let d = 1; d <= lastDay; d++) {
         chartLabels.push(`${d}`);
@@ -237,6 +233,19 @@
         yAxisID: 'y1',
         order: 1
       });
+      
+      // 金額を「千」「万」に自動整形する関数
+      const formatAmount = (value) => {
+        if (value === 0) return '0';
+        if (value >= 10000) {
+          // 1万以上の場合は万単位（小数点第一位まででキリ良く）
+          return parseFloat((value / 10000).toFixed(1)) + '万';
+        } else if (value >= 1000) {
+          // 1000以上1万未満の場合は千単位
+          return parseFloat((value / 1000).toFixed(1)) + '千';
+        }
+        return value;
+      };
 
       myLineChart = new Chart(lineCtx, {
         data: {
@@ -255,12 +264,20 @@
               position: 'bottom',
               labels: { boxWidth: 12, font: { size: 10 } }
             },
-            datalabels: { display: false }
+            datalabels: { display: false },
+            tooltip: {
+              callbacks: {
+                title: function(tooltipItems) {
+                  const day = tooltipItems[0].label;
+                  return monthNum + '/' + day; 
+                }
+              }
+            }
           },
           scales: {
             x: { 
               stacked: true,
-              ticks: { maxRotation: 0, font: { size: 10 } } // 日付の文字を小さくし、斜めになるのを防ぐ
+              ticks: { maxRotation: 0, font: { size: 10 } }
             },
             y: {
               type: 'linear',
@@ -270,10 +287,7 @@
               beginAtZero: true,
               ticks: { 
                 font: { size: 10 },
-                callback: function(value) { 
-                  if (value === 0) return '0';
-                  return value.toLocaleString(); // ¥を消してスッキリ
-                } 
+                callback: formatAmount // 左軸（日別）に適用
               }
             },
             y1: {
@@ -284,10 +298,7 @@
               grid: { drawOnChartArea: false },
               ticks: { 
                 font: { size: 10 },
-                callback: function(value) { 
-                  if (value === 0) return '0';
-                  return (value / 10000) + '万'; // 累計は「万」単位にして幅を大幅に節約
-                } 
+                callback: formatAmount // 右軸（累計）に適用
               }
             }
           }
