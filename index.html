@@ -165,8 +165,22 @@
           cutout: '70%',
           responsive: true,
           plugins: { 
-            legend: { position: 'bottom' },
-            // ★円グラフのツールチップに¥マークとカンマを追加
+            legend: { 
+              position: 'bottom',
+              // ★追加：凡例タップ時に合計金額を引き算して再表示
+              onClick: function(e, legendItem, legend) {
+                Chart.defaults.plugins.legend.onClick.call(this, e, legendItem, legend);
+                const chart = legend.chart;
+                let newTotal = 0;
+                const meta = chart.getDatasetMeta(0);
+                chart.data.datasets[0].data.forEach((val, index) => {
+                  if (!meta.data[index].hidden) {
+                    newTotal += val;
+                  }
+                });
+                document.getElementById('totalAmount').innerText = "¥" + newTotal.toLocaleString();
+              }
+            },
             tooltip: {
               callbacks: {
                 label: function(context) {
@@ -241,12 +255,13 @@
         borderWidth: 2,
         fill: false,
         tension: 0.1,
-        pointRadius: 1, // ★折れ線グラフの点を2から1に縮小
-        pointHoverRadius: 3, // タップした時は少し大きくする
+        pointRadius: 1, 
+        pointHoverRadius: 3, 
         yAxisID: 'y1',
         order: 1
       });
       
+      // 金額を「千」「万」に自動整形する関数
       const formatAmount = (value) => {
         if (value === 0) return '0';
         if (value >= 10000) {
@@ -254,7 +269,7 @@
         } else if (value >= 1000) {
           return parseFloat((value / 1000).toFixed(1)) + '千';
         }
-        return value;
+        return value.toLocaleString();
       };
 
       myLineChart = new Chart(lineCtx, {
@@ -272,7 +287,36 @@
             legend: { 
               display: true,
               position: 'bottom',
-              labels: { boxWidth: 12, font: { size: 10 } }
+              labels: { boxWidth: 12, font: { size: 10 } },
+              // ★追加：凡例を消した時に折れ線の累計金額も再計算する
+              onClick: function(e, legendItem, legend) {
+                Chart.defaults.plugins.legend.onClick.call(this, e, legendItem, legend);
+                
+                const chart = legend.chart;
+                // 「累計支出」自体をタップした時は線が消えるだけで再計算はしない
+                if (legendItem.datasetIndex === 0) return;
+                
+                const lastD = chart.data.labels.length;
+                const newDailyTotals = new Array(lastD).fill(0);
+                
+                // 表示されている棒グラフだけを合算
+                for (let i = 1; i < chart.data.datasets.length; i++) {
+                  if (chart.isDatasetVisible(i)) {
+                    const catData = chart.data.datasets[i].data;
+                    for (let d = 0; d < lastD; d++) {
+                      newDailyTotals[d] += catData[d];
+                    }
+                  }
+                }
+                
+                // 折れ線グラフ（累計）のデータを上書きして更新
+                let cum = 0;
+                chart.data.datasets[0].data = newDailyTotals.map(amount => {
+                  cum += amount;
+                  return cum;
+                });
+                chart.update();
+              }
             },
             datalabels: { display: false },
             tooltip: {
@@ -281,7 +325,6 @@
                   const day = tooltipItems[0].label;
                   return monthNum + '/' + day; 
                 },
-                // ★複合グラフのツールチップにも¥マークとカンマを追加
                 label: function(context) {
                   let label = context.dataset.label || '';
                   if (label) {
@@ -308,7 +351,8 @@
               beginAtZero: true,
               ticks: { 
                 font: { size: 10 },
-                callback: formatAmount
+                // ★左軸に確実に関数を適用
+                callback: function(value) { return formatAmount(value); }
               }
             },
             y1: {
@@ -319,7 +363,8 @@
               grid: { drawOnChartArea: false },
               ticks: { 
                 font: { size: 10 },
-                callback: formatAmount
+                // ★右軸にも確実に関数を適用
+                callback: function(value) { return formatAmount(value); }
               }
             }
           }
