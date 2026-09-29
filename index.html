@@ -252,10 +252,26 @@
         borderWidth: 2,
         fill: false,
         tension: 0.1,
-        pointRadius: 1, 
-        pointHoverRadius: 3, 
         yAxisID: 'y1',
-        order: 1
+        order: 1,
+        pointHoverRadius: 5,
+        pointRadius: 1, // ★常に小さく固定
+        
+        // 色だけを条件で変える
+        pointBackgroundColor: function(context) {
+          const index = context.dataIndex;
+          const dataArr = context.dataset.data;
+          const currentVal = dataArr[index] || 0;
+          const prevVal = index === 0 ? 0 : (dataArr[index - 1] || 0);
+          return (currentVal - prevVal !== 0) ? '#ff3b30' : '#333333'; // 支出があったら赤
+        },
+        pointBorderColor: function(context) {
+          const index = context.dataIndex;
+          const dataArr = context.dataset.data;
+          const currentVal = dataArr[index] || 0;
+          const prevVal = index === 0 ? 0 : (dataArr[index - 1] || 0);
+          return (currentVal - prevVal !== 0) ? '#ff3b30' : '#333333';
+        }
       });
       
       const formatAmount = (value) => {
@@ -265,7 +281,6 @@
         } else if (value >= 1000) {
           return parseFloat((value / 1000).toFixed(1)) + '千';
         }
-        // 万が一小数点が来た場合でも整数にして表示
         return Math.round(value).toLocaleString();
       };
 
@@ -308,7 +323,7 @@
                   cum += amount;
                   return cum;
                 });
-                chart.update();
+                chart.update(); 
               }
             },
             datalabels: { display: false },
@@ -342,7 +357,7 @@
               position: 'left',
               stacked: true,
               beginAtZero: true,
-              suggestedMax: 10000, // ★追加：データが空でも1万円の枠組みを残す
+              suggestedMax: 10000,
               ticks: { 
                 font: { size: 10 },
                 callback: function(value) { return formatAmount(value); }
@@ -353,7 +368,7 @@
               display: true,
               position: 'right',
               beginAtZero: true,
-              suggestedMax: 10000, // ★追加：データが空でも1万円の枠組みを残す
+              suggestedMax: 10000,
               grid: { drawOnChartArea: false },
               ticks: { 
                 font: { size: 10 },
